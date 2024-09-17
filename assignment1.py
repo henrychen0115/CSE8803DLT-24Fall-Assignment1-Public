@@ -32,10 +32,39 @@ class CausalSelfAttention(nn.Module):
 
         Input & output shape: (batch_size, sequence_length, d_model)
         """
-        # --- TODO: start of your code ---
+        batch_size, seq_len, d_model = x.shape
+        head_dim = d_model // self.n_head
+        # Reshape for multi-head attention
+            # Project input to query, key, and value
+        q = self.q_proj(x)
+        k = self.k_proj(x)
+        v = self.v_proj(x)
 
-        # --- TODO: end of your code ---
-        raise NotImplementedError
+        # Reshape and transpose for multi-head attention
+        q = q.view(batch_size, seq_len, self.n_head, head_dim).transpose(1, 2)
+        k = k.view(batch_size, seq_len, self.n_head, head_dim).transpose(1, 2)
+        v = v.view(batch_size, seq_len, self.n_head, head_dim).transpose(1, 2)
+
+        # Compute scaled dot-product attention
+        attn_scores = torch.matmul(q, k.transpose(-2, -1)) / (head_dim ** 0.5)
+
+        # Create causal mask
+        causal_mask = torch.triu(torch.ones(seq_len, seq_len, device=x.device), diagonal=1).bool()
+        attn_scores.masked_fill_(causal_mask, float('-inf'))
+
+        attn_probs = torch.softmax(attn_scores, dim=-1)
+
+        # Apply attention to values
+        output = torch.matmul(attn_probs, v)
+
+        # Reshape and concatenate heads
+        output = output.transpose(1, 2).contiguous().view(batch_size, seq_len, d_model)
+
+        # Final projection and dropout
+        output = self.o_proj(output)
+        output = self.residual_dropout(output)
+
+        return output
 
 
 # causal_self_attention = CausalSelfAttention(d_model=d_model, n_head=n_head, dropout=dropout)
